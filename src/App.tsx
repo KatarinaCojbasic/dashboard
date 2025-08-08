@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, BarChart3, PieChart, TrendingUp, Brain, RotateCcw, Save, CheckCircle } from 'lucide-react';
-import CSVUploader from './components/CSVUploader';
+import DataSourceSelector from './components/DataSourceSelector';
 import Dashboard from './components/Dashboard';
 import QuestionPanel from './components/QuestionPanel';
 import AuthButton from './components/AuthButton';
 import LoginForm from './components/LoginForm';
 import SavedAnalyses from './components/SavedAnalyses';
-import { CSVData, AnalysisResult } from './types';
+import { CSVData, APIData, AnalysisResult } from './types';
 import { supabase } from './lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
 function App() {
-  const [csvData, setCsvData] = useState<CSVData | null>(null);
+  const [data, setData] = useState<CSVData | APIData | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -69,13 +69,22 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleCSVUpload = (data: CSVData) => {
-    setCsvData(data);
+  const handleCSVUpload = (csvData: CSVData) => {
+    setData(csvData);
+    setAnalysisResult(null);
+  };
+
+  const handleAPIData = (apiData: APIData) => {
+    console.log('🔍 App received API data:', apiData);
+    console.log('🔍 API data headers:', apiData.headers);
+    console.log('🔍 API data rows:', apiData.data.length);
+    console.log('🔍 First row sample:', apiData.data[0]);
+    setData(apiData);
     setAnalysisResult(null);
   };
 
   const handleNewUpload = () => {
-    setCsvData(null);
+    setData(null);
     setAnalysisResult(null);
     setCurrentAnalysisLogId(null);
     setIsSaved(false);
@@ -83,7 +92,7 @@ function App() {
   };
 
   const handleQuestionSubmit = async (question: string) => {
-    if (!csvData) return;
+    if (!data) return;
 
     setIsAnalyzing(true);
     try {
@@ -105,10 +114,11 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          data: csvData.data,
-          headers: csvData.headers,
+          data: data.data,
+          headers: data.headers,
           question: question,
-          user_id: session?.user?.id
+          user_id: session?.user?.id,
+          dataSource: 'source' in data ? data.source : 'csv'
         })
       });
 
@@ -129,9 +139,10 @@ function App() {
             user_id: session.user.id,
             question: question,
             data_summary: {
-              records: csvData.data.length,
-              columns: csvData.headers.length,
-              headers: csvData.headers
+              records: data.data.length,
+              columns: data.headers.length,
+              headers: data.headers,
+              source: 'source' in data ? data.source : 'csv'
             },
             result_summary: result.summary,
             charts_generated: result.charts?.length || 0
@@ -148,7 +159,7 @@ function App() {
     } catch (error) {
       console.error('Analysis error:', error);
       // Fallback to local analysis if edge function fails
-      const fallbackResult = generateFallbackAnalysis(csvData, question);
+      const fallbackResult = generateFallbackAnalysis(data, question);
       setAnalysisResult(fallbackResult);
     } finally {
       setIsAnalyzing(false);
@@ -161,7 +172,7 @@ function App() {
 
   const handleLoadAnalysis = async (id: string) => {
     try {
-      const { data, error } = await supabase
+      const { data: analysisData, error } = await supabase
         .from('analysis_logs')
         .select('*')
         .eq('id', id)
@@ -169,11 +180,12 @@ function App() {
 
       if (error) throw error;
 
-      if (data && data.analysis_details) {
-        // Reconstruct basic csvData from stored summary
-        const dataSummary = data.data_summary || {};
+      if (analysisData && analysisData.analysis_details) {
+        // Reconstruct data from stored summary
+        const dataSummary = analysisData.data_summary || {};
         const headers = dataSummary.headers || [];
         const recordCount = dataSummary.records || 0;
+        const dataSource = dataSummary.source || 'csv';
         
         // Create dummy data array with correct length
         const dummyData = Array(recordCount).fill(null).map(() => {
@@ -184,21 +196,30 @@ function App() {
           return row;
         });
 
-        setCsvData({
-          headers,
-          data: dummyData
-        });
+        // Set data based on source type
+        if (dataSource === 'api') {
+          setData({
+            headers,
+            data: dummyData,
+            source: 'api'
+          });
+        } else {
+          setData({
+            headers,
+            data: dummyData
+          });
+        }
 
         // Set the analysis result from stored details
         setAnalysisResult({
-          summary: data.result_summary || '',
-          charts: data.analysis_details.charts || [],
-          insights: data.analysis_details.insights || []
+          summary: analysisData.result_summary || '',
+          charts: analysisData.analysis_details.charts || [],
+          insights: analysisData.analysis_details.insights || []
         });
 
         // Set custom charts if they exist
-        if (data.analysis_details.customCharts) {
-          setCustomCharts(data.analysis_details.customCharts);
+        if (analysisData.analysis_details.customCharts) {
+          setCustomCharts(analysisData.analysis_details.customCharts);
         } else {
           setCustomCharts([]);
         }
@@ -211,14 +232,17 @@ function App() {
     }
   };
 
-  const generateFallbackAnalysis = (data: CSVData, question: string): AnalysisResult => {
+  const generateFallbackAnalysis = (data: CSVData | APIData, question: string): AnalysisResult => {
     // Simple fallback analysis
     const numericColumns = data.headers.filter(header => {
-      return data.data.some(row => !isNaN(parseFloat(row[header])));
+      return data.data.some(row => !isNaN(parseFloat(String(row[header]))));
     });
 
+    const dataSource = 'source' in data ? data.source : 'csv';
+    const sourceText = dataSource === 'api' ? 'API' : 'CSV';
+
     return {
-      summary: `Analysis for: "${question}". Found ${data.data.length} records with ${numericColumns.length} numeric columns.`,
+      summary: `Analysis for: "${question}". Found ${data.data.length} records with ${numericColumns.length} numeric columns from ${sourceText} source.`,
       charts: [
         {
           type: 'bar',
@@ -228,7 +252,7 @@ function App() {
             datasets: [{
               label: 'Values',
               data: numericColumns.slice(0, 5).map(col => {
-                const values = data.data.map(row => parseFloat(row[col]) || 0);
+                const values = data.data.map(row => parseFloat(String(row[col])) || 0);
                 return values.reduce((sum, val) => sum + val, 0) / values.length;
               }),
               backgroundColor: 'rgba(59, 130, 246, 0.6)',
@@ -239,7 +263,7 @@ function App() {
         }
       ],
       insights: [
-        `Dataset contains ${data.data.length} records`,
+        `Dataset contains ${data.data.length} records from ${sourceText}`,
         `Found ${numericColumns.length} numeric columns for analysis`,
         'This is a basic analysis - connect to Supabase for AI-powered insights'
       ]
@@ -256,7 +280,7 @@ function App() {
               <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
                 <Brain className="h-6 w-6 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-white">CSV AI Dashboard</h1>
+              <h1 className="text-2xl font-bold text-white">Data AI Dashboard</h1>
             </div>
             <div className="flex items-center space-x-4">
               {analysisResult && currentAnalysisLogId && !isSaved && (
@@ -281,13 +305,13 @@ function App() {
                   <span className="text-sm font-medium">Saved</span>
                 </div>
               )}
-              {csvData && (
+              {data && (
                 <button
                   onClick={handleNewUpload}
                   className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-lg text-white transition-all duration-200 hover:scale-105"
                 >
                   <RotateCcw className="h-4 w-4" />
-                  <span className="text-sm font-medium">New Upload</span>
+                  <span className="text-sm font-medium">New Data Source</span>
                 </button>
               )}
               <div className="flex items-center space-x-4 text-white/70">
@@ -320,20 +344,23 @@ function App() {
           <div className="text-center py-16">
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 max-w-md mx-auto border border-white/20">
               <Brain className="h-16 w-16 mx-auto mb-6 text-blue-400" />
-              <h2 className="text-2xl font-bold text-white mb-4">Welcome to CSV AI Dashboard</h2>
+              <h2 className="text-2xl font-bold text-white mb-4">Welcome to Data AI Dashboard</h2>
               <p className="text-white/70 mb-6">
-                Sign in to start analyzing your CSV data with AI-powered insights and autonomous analysis.
+                Sign in to start analyzing your data with AI-powered insights and autonomous analysis.
               </p>
               
               {/* Inline Login Form */}
               <LoginForm />
             </div>
           </div>
-        ) : !csvData ? (
+        ) : !data ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div>
               <div className="text-center py-8">
-                <CSVUploader onUpload={handleCSVUpload} />
+                <DataSourceSelector 
+                  onCSVUpload={handleCSVUpload}
+                  onAPIData={handleAPIData}
+                />
               </div>
             </div>
             <div>
@@ -347,8 +374,9 @@ function App() {
                 onSubmit={handleQuestionSubmit}
                 isAnalyzing={isAnalyzing}
                 dataInfo={{
-                  records: csvData.data.length,
-                  columns: csvData.headers.length
+                  records: data.data.length,
+                  columns: data.headers.length,
+                  source: 'source' in data ? data.source : 'csv'
                 }}
               />
             </div>
@@ -356,7 +384,7 @@ function App() {
               {analysisResult ? (
                 <Dashboard 
                   result={analysisResult} 
-                  csvData={csvData} 
+                  csvData={data} 
                   onCustomChartsChange={handleCustomChartsChange}
                   initialCustomCharts={customCharts}
                 />

@@ -12,7 +12,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { AnalysisResult, CSVData, ChartData } from '../types';
+import { AnalysisResult, CSVData, APIData, ChartData } from '../types';
 import { TrendingUp, BarChart3, Eye, Zap, Settings, Plus, X, Play } from 'lucide-react';
 
 ChartJS.register(
@@ -29,7 +29,7 @@ ChartJS.register(
 
 interface DashboardProps {
   result: AnalysisResult;
-  csvData: CSVData;
+  csvData: CSVData | APIData;
   onCustomChartsChange?: (customCharts: ChartData[]) => void;
   initialCustomCharts?: ChartData[];
 }
@@ -61,14 +61,14 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
   // Helper functions for column analysis
   const allColumns = csvData.headers;
   const numericColumns = csvData.headers.filter(header => {
-    return csvData.data.some(row => !isNaN(parseFloat(row[header])) && row[header] !== '');
+    return csvData.data.some(row => !isNaN(parseFloat(String(row[header]))) && String(row[header]) !== '');
   });
   const categoricalColumns = csvData.headers.filter(header => !numericColumns.includes(header));
   
   const getColumnType = (column: string) => {
     if (numericColumns.includes(column)) return 'numeric';
     // Check if it's a date column
-    const sampleValues = csvData.data.slice(0, 10).map(row => row[column]).filter(val => val);
+    const sampleValues = csvData.data.slice(0, 10).map(row => String(row[column])).filter(val => val);
     const dateValues = sampleValues.filter(val => !isNaN(Date.parse(val)));
     if (dateValues.length > sampleValues.length * 0.5) return 'date';
     return 'categorical';
@@ -98,7 +98,7 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
       // For pie/doughnut charts, count occurrences of each category
       const valueCounts: Record<string, number> = {};
       csvData.data.forEach(row => {
-        const value = row[newChart.xColumn];
+        const value = String(row[newChart.xColumn]);
         if (value && value.trim()) {
           valueCounts[value] = (valueCounts[value] || 0) + 1;
         }
@@ -128,8 +128,8 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
       
       const groupedData: Record<string, number[]> = {};
       csvData.data.forEach(row => {
-        const xValue = row[newChart.xColumn];
-        const yValue = parseFloat(row[newChart.yColumn]);
+        const xValue = String(row[newChart.xColumn]);
+        const yValue = parseFloat(String(row[newChart.yColumn]));
         
         if (xValue && !isNaN(yValue)) {
           if (!groupedData[xValue]) {

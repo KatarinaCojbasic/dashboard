@@ -9,10 +9,12 @@ interface QuestionPanelProps {
   dataInfo: {
     records: number;
     columns: number;
+    source?: string;
   };
 }
 
 const QuestionPanel: React.FC<QuestionPanelProps> = ({ onSubmit, isAnalyzing, dataInfo }) => {
+  console.log('🔍 QuestionPanel dataInfo:', dataInfo);
   const [question, setQuestion] = useState('');
   const [recentQuestions, setRecentQuestions] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -70,7 +72,7 @@ const QuestionPanel: React.FC<QuestionPanelProps> = ({ onSubmit, isAnalyzing, da
           <Database className="h-6 w-6 text-blue-400" />
           <h3 className="text-lg font-semibold text-white">Dataset Overview</h3>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div className="text-center p-3 bg-white/5 rounded-lg">
             <div className="text-2xl font-bold text-white">{dataInfo.records.toLocaleString()}</div>
             <div className="text-sm text-white/70">Records</div>
@@ -78,6 +80,10 @@ const QuestionPanel: React.FC<QuestionPanelProps> = ({ onSubmit, isAnalyzing, da
           <div className="text-center p-3 bg-white/5 rounded-lg">
             <div className="text-2xl font-bold text-white">{dataInfo.columns}</div>
             <div className="text-sm text-white/70">Columns</div>
+          </div>
+          <div className="text-center p-3 bg-white/5 rounded-lg">
+            <div className="text-lg font-bold text-white capitalize">{dataInfo.source || 'csv'}</div>
+            <div className="text-sm text-white/70">Source</div>
           </div>
         </div>
       </div>
