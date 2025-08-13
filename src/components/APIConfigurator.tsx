@@ -12,8 +12,7 @@ const APIConfigurator: React.FC<APIConfiguratorProps> = ({ onDataReceived }) => 
     dateTo: '2025-01-01 19:59:59',
     locations: '130',
     panels: '60',
-    deviceTypes: '2,4,6,8,9,12',
-    accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NjUsImlhdCI6MTc0NzIxNzgwMX0.6vIFqeIkUE618gFatVBUpjyEG9pKKsFMVNHO_HZQjfM'
+    deviceTypes: '2,4,6,8,9,12'
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -32,6 +31,14 @@ const APIConfigurator: React.FC<APIConfiguratorProps> = ({ onDataReceived }) => 
     setError(null);
     setSuccess(false);
 
+    // Check if API token is configured
+    const apiToken = import.meta.env.VITE_API_ACCESS_TOKEN;
+    if (!apiToken) {
+      setError('API access token not configured. Please check your environment variables.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const url = new URL('https://ampenergy-backend.azurewebsites.net/api/locations-equipments');
       url.searchParams.set('date_from', config.dateFrom);
@@ -46,7 +53,7 @@ const APIConfigurator: React.FC<APIConfiguratorProps> = ({ onDataReceived }) => 
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
-          'x-access-token': config.accessToken,
+          'x-access-token': import.meta.env.VITE_API_ACCESS_TOKEN || '',
           'Content-Type': 'application/json',
         },
       });
@@ -202,18 +209,7 @@ const APIConfigurator: React.FC<APIConfiguratorProps> = ({ onDataReceived }) => 
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-white/80 mb-2">
-              Access Token
-            </label>
-            <input
-              type="password"
-              value={config.accessToken}
-              onChange={(e) => handleInputChange('accessToken', e.target.value)}
-              className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter your access token"
-            />
-          </div>
+
 
           <button
             type="submit"
@@ -247,6 +243,17 @@ const APIConfigurator: React.FC<APIConfiguratorProps> = ({ onDataReceived }) => 
              <span className="text-sm">Data fetched successfully!</span>
            </div>
          )}
+
+         {/* API Token Info */}
+         <div className="mt-4 p-3 bg-blue-500/20 border border-blue-500/30 rounded-lg">
+           <h4 className="text-blue-400 font-medium mb-2">🔑 API Configuration</h4>
+           <p className="text-blue-400/80 text-sm mb-2">
+             API access token is configured via environment variable <code className="bg-blue-500/30 px-1 rounded">VITE_API_ACCESS_TOKEN</code>
+           </p>
+           <p className="text-blue-400/70 text-xs">
+             Token status: {import.meta.env.VITE_API_ACCESS_TOKEN ? '✅ Configured' : '❌ Not configured'}
+           </p>
+         </div>
 
          {/* Debug Test Button */}
          <div className="mt-4 p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">

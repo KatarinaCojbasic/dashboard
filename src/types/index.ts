@@ -30,7 +30,6 @@ export interface APIConfig {
   locations: string;
   panels: string;
   deviceTypes: string;
-  accessToken: string;
 }
 
 export interface APIData {
