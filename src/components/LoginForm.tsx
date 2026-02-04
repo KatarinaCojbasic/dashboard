@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
 import { LogIn, UserPlus, Loader2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { register, login, isApiConfigured } from '../lib/api';
 
-const LoginForm: React.FC = () => {
+export interface LocalUser {
+  id: string;
+  email: string;
+}
+
+interface LoginFormProps {
+  onSuccess: (user: LocalUser) => void;
+}
+
+const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [registrationKey, setRegistrationKey] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -14,26 +24,47 @@ const LoginForm: React.FC = () => {
     setAuthLoading(true);
     setAuthError(null);
 
-    try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        if (error) throw error;
-        setEmail('');
-        setPassword('');
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        setEmail('');
-        setPassword('');
+    const emailTrim = email.trim();
+    if (!emailTrim) {
+      setAuthError('Please enter your email');
+      setAuthLoading(false);
+      return;
+    }
+
+    if (isApiConfigured()) {
+      if (!password || password.length < 6) {
+        setAuthError('Password must be at least 6 characters');
+        setAuthLoading(false);
+        return;
       }
-    } catch (error: any) {
-      setAuthError(error.message);
+      if (isSignUp && !registrationKey.trim()) {
+        setAuthError('Registration key required');
+        setAuthLoading(false);
+        return;
+      }
+      try {
+        const user = isSignUp
+          ? await register(emailTrim, password, registrationKey)
+          : await login(emailTrim, password);
+        onSuccess({ id: user.id, email: user.email });
+        setEmail('');
+        setPassword('');
+        setRegistrationKey('');
+      } catch (err: unknown) {
+        setAuthError(err instanceof Error ? err.message : 'Something went wrong');
+      } finally {
+        setAuthLoading(false);
+      }
+      return;
+    }
+
+    // No API: local session only
+    try {
+      onSuccess({ id: 'local', email: emailTrim });
+      setEmail('');
+      setPassword('');
+    } catch (err: unknown) {
+      setAuthError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setAuthLoading(false);
     }
@@ -43,6 +74,7 @@ const LoginForm: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-center space-x-1 bg-white/5 rounded-lg p-1">
         <button
+          type="button"
           onClick={() => setIsSignUp(false)}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
             !isSignUp
@@ -53,6 +85,7 @@ const LoginForm: React.FC = () => {
           Sign In
         </button>
         <button
+          type="button"
           onClick={() => setIsSignUp(true)}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
             isSignUp
@@ -89,9 +122,23 @@ const LoginForm: React.FC = () => {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Enter your password"
-            required
           />
         </div>
+
+        {isSignUp && (
+          <div>
+            <label className="block text-white/80 text-sm font-medium mb-2">
+              Registration key
+            </label>
+            <input
+              type="password"
+              value={registrationKey}
+              onChange={(e) => setRegistrationKey(e.target.value)}
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter registration key"
+            />
+          </div>
+        )}
 
         {authError && (
           <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm">

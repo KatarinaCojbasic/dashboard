@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Send, Loader2, Database, FileText, Lightbulb, History } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import type { Database as SupabaseDatabase } from '../lib/supabase';
+import { getRecentQuestions } from '../lib/analysisLogs';
 
 interface QuestionPanelProps {
   onSubmit: (question: string) => void;
@@ -11,39 +10,17 @@ interface QuestionPanelProps {
     columns: number;
     source?: string;
   };
+  userId?: string;
 }
 
-const QuestionPanel: React.FC<QuestionPanelProps> = ({ onSubmit, isAnalyzing, dataInfo }) => {
-  console.log('🔍 QuestionPanel dataInfo:', dataInfo);
+const QuestionPanel: React.FC<QuestionPanelProps> = ({ onSubmit, isAnalyzing, dataInfo, userId }) => {
   const [question, setQuestion] = useState('');
   const [recentQuestions, setRecentQuestions] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Load recent questions when component mounts
-  React.useEffect(() => {
-    loadRecentQuestions();
-  }, []);
-
-  const loadRecentQuestions = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
-
-      const { data, error } = await supabase
-        .from('analysis_logs')
-        .select('question')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      
-      const questions = data?.map(log => log.question) || [];
-      setRecentQuestions([...new Set(questions)]); // Remove duplicates
-    } catch (error) {
-      console.warn('Failed to load recent questions:', error);
-    }
-  };
+  useEffect(() => {
+    getRecentQuestions(5, userId).then(setRecentQuestions);
+  }, [userId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

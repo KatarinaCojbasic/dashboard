@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Upload, BarChart3, PieChart, TrendingUp, Brain, RotateCcw, Save, CheckCircle } from 'lucide-react';
 import DataSourceSelector from './components/DataSourceSelector';
 import Dashboard from './components/Dashboard';
@@ -6,16 +6,27 @@ import QuestionPanel from './components/QuestionPanel';
 import AuthButton from './components/AuthButton';
 import LoginForm from './components/LoginForm';
 import SavedAnalyses from './components/SavedAnalyses';
-import { CSVData, APIData, AnalysisResult } from './types';
-import { supabase } from './lib/supabase';
-import type { User } from '@supabase/supabase-js';
+import { CSVData, APIData, AnalysisResult, ChartData } from './types';
+import { updateAnalysisLog, saveAnalysisLog, getAnalysisLog } from './lib/analysisLogs';
+
+const USER_STORAGE_KEY = 'user';
+
+function getStoredUser(): { id: string; email: string } | null {
+  try {
+    const raw = localStorage.getItem(USER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed.id === 'string' && typeof parsed.email === 'string' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 function App() {
   const [data, setData] = useState<CSVData | APIData | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [user, setUser] = useState<{ id: string; email: string } | null>(getStoredUser);
   const [currentAnalysisLogId, setCurrentAnalysisLogId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
@@ -26,20 +37,15 @@ function App() {
 
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from('analysis_logs')
-        .update({
-          analysis_details: {
-            charts: analysisResult.charts,
-            customCharts: customCharts,
-            insights: analysisResult.insights
-          },
-          charts_generated: (analysisResult.charts?.length || 0) + customCharts.length,
-          is_saved: true
-        })
-        .eq('id', currentAnalysisLogId);
-
-      if (error) throw error;
+      await updateAnalysisLog(currentAnalysisLogId, {
+        analysis_details: {
+          charts: analysisResult.charts,
+          customCharts: customCharts,
+          insights: analysisResult.insights
+        },
+        charts_generated: (analysisResult.charts?.length || 0) + customCharts.length,
+        is_saved: true
+      }, user.id);
       setIsSaved(true);
     } catch (error) {
       console.error('Failed to save analysis:', error);
@@ -47,27 +53,6 @@ function App() {
       setIsSaving(false);
     }
   };
-
-  useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setIsLoadingAuth(false);
-    };
-
-    getInitialSession();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        setIsLoadingAuth(false);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   const handleCSVUpload = (csvData: CSVData) => {
     setData(csvData);
@@ -96,71 +81,26 @@ function App() {
 
     setIsAnalyzing(true);
     try {
-      // Get current user session
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      // Call our edge function for analysis
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Supabase configuration missing');
-      }
-      
-      const response = await fetch(`${supabaseUrl}/functions/v1/analyze-csv`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token || supabaseAnonKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          data: data.data,
-          headers: data.headers,
-          question: question,
-          user_id: session?.user?.id,
-          dataSource: 'source' in data ? data.source : 'csv'
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Analysis failed');
-      }
-
-      const result = await response.json();
+      const result = generateFallbackAnalysis(data, question);
       setAnalysisResult(result);
       setIsSaved(false);
-      
-      // Log the analysis if user is authenticated
-      if (session?.user) {
-        try {
-          const { data: logData, error: logError } = await supabase
-            .from('analysis_logs')
-            .insert({
-            user_id: session.user.id,
-            question: question,
-            data_summary: {
-              records: data.data.length,
-              columns: data.headers.length,
-              headers: data.headers,
-              source: 'source' in data ? data.source : 'csv'
-            },
-            result_summary: result.summary,
-            charts_generated: result.charts?.length || 0
-          })
-            .select('id')
-            .single();
 
-          if (logError) throw logError;
-          setCurrentAnalysisLogId(logData?.id || null);
-        } catch (logError) {
-          console.warn('Failed to log analysis:', logError);
-        }
-      }
+      const id = await saveAnalysisLog({
+        question,
+        data_summary: {
+          records: data.data.length,
+          columns: data.headers.length,
+          headers: data.headers,
+          source: 'source' in data ? data.source : 'csv'
+        },
+        result_summary: result.summary,
+        charts_generated: result.charts?.length || 0,
+        analysis_details: { charts: result.charts, insights: result.insights },
+        is_saved: false
+      }, user.id);
+      setCurrentAnalysisLogId(id);
     } catch (error) {
       console.error('Analysis error:', error);
-      // Fallback to local analysis if edge function fails
-      const fallbackResult = generateFallbackAnalysis(data, question);
-      setAnalysisResult(fallbackResult);
     } finally {
       setIsAnalyzing(false);
     }
@@ -171,62 +111,44 @@ function App() {
   };
 
   const handleLoadAnalysis = async (id: string) => {
+    if (!user) return;
     try {
-      const { data: analysisData, error } = await supabase
-        .from('analysis_logs')
-        .select('*')
-        .eq('id', id)
-        .single();
+      const analysisData = await getAnalysisLog(id, user.id);
+      if (!analysisData?.analysis_details) return;
 
-      if (error) throw error;
+      const dataSummary = analysisData.data_summary || {};
+      const headers = dataSummary.headers || [];
+      const recordCount = dataSummary.records || 0;
+      const dataSource = dataSummary.source || 'csv';
 
-      if (analysisData && analysisData.analysis_details) {
-        // Reconstruct data from stored summary
-        const dataSummary = analysisData.data_summary || {};
-        const headers = dataSummary.headers || [];
-        const recordCount = dataSummary.records || 0;
-        const dataSource = dataSummary.source || 'csv';
-        
-        // Create dummy data array with correct length
-        const dummyData = Array(recordCount).fill(null).map(() => {
-          const row: { [key: string]: string } = {};
-          headers.forEach((header: string) => {
-            row[header] = '';
-          });
-          return row;
+      const dummyData = Array(recordCount).fill(null).map(() => {
+        const row: { [key: string]: string } = {};
+        headers.forEach((header: string) => {
+          row[header] = '';
         });
+        return row;
+      });
 
-        // Set data based on source type
-        if (dataSource === 'api') {
-          setData({
-            headers,
-            data: dummyData,
-            source: 'api'
-          });
-        } else {
-          setData({
-            headers,
-            data: dummyData
-          });
-        }
-
-        // Set the analysis result from stored details
-        setAnalysisResult({
-          summary: analysisData.result_summary || '',
-          charts: analysisData.analysis_details.charts || [],
-          insights: analysisData.analysis_details.insights || []
-        });
-
-        // Set custom charts if they exist
-        if (analysisData.analysis_details.customCharts) {
-          setCustomCharts(analysisData.analysis_details.customCharts);
-        } else {
-          setCustomCharts([]);
-        }
-
-        setCurrentAnalysisLogId(id);
-        setIsSaved(true);
+      if (dataSource === 'api') {
+        setData({ headers, data: dummyData, source: 'api' });
+      } else {
+        setData({ headers, data: dummyData });
       }
+
+      setAnalysisResult({
+        summary: analysisData.result_summary || '',
+        charts: analysisData.analysis_details.charts || [],
+        insights: analysisData.analysis_details.insights || []
+      });
+
+      if (analysisData.analysis_details.customCharts) {
+        setCustomCharts(analysisData.analysis_details.customCharts);
+      } else {
+        setCustomCharts([]);
+      }
+
+      setCurrentAnalysisLogId(id);
+      setIsSaved(analysisData.is_saved ?? true);
     } catch (error) {
       console.error('Failed to load analysis:', error);
     }
@@ -265,7 +187,7 @@ function App() {
       insights: [
         `Dataset contains ${data.data.length} records from ${sourceText}`,
         `Found ${numericColumns.length} numeric columns for analysis`,
-        'This is a basic analysis - connect to Supabase for AI-powered insights'
+        'Local analysis – all processing runs in your browser'
       ]
     };
   };
@@ -315,7 +237,15 @@ function App() {
                 </button>
               )}
               <div className="flex items-center space-x-4 text-white/70">
-                <AuthButton />
+                {user && (
+                  <AuthButton
+                    user={user}
+                    onSignOut={() => {
+                      setUser(null);
+                      localStorage.removeItem(USER_STORAGE_KEY);
+                    }}
+                  />
+                )}
                 <div className="flex items-center space-x-2">
                   <BarChart3 className="h-5 w-5" />
                   <span className="text-sm">Analytics</span>
@@ -335,22 +265,20 @@ function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {isLoadingAuth ? (
-          <div className="text-center py-16">
-            <div className="animate-spin mx-auto h-12 w-12 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div>
-            <p className="text-white/70 text-lg">Loading...</p>
-          </div>
-        ) : !user ? (
+        {!user ? (
           <div className="text-center py-16">
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 max-w-md mx-auto border border-white/20">
               <Brain className="h-16 w-16 mx-auto mb-6 text-blue-400" />
               <h2 className="text-2xl font-bold text-white mb-4">Welcome to Data AI Dashboard</h2>
               <p className="text-white/70 mb-6">
-                Sign in to start analyzing your data with AI-powered insights and autonomous analysis.
+                Sign in or create an account to start analyzing your data.
               </p>
-              
-              {/* Inline Login Form */}
-              <LoginForm />
+              <LoginForm
+                onSuccess={(u) => {
+                  setUser(u);
+                  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u));
+                }}
+              />
             </div>
           </div>
         ) : !data ? (
@@ -364,7 +292,7 @@ function App() {
               </div>
             </div>
             <div>
-              <SavedAnalyses onLoadAnalysis={handleLoadAnalysis} />
+              <SavedAnalyses onLoadAnalysis={handleLoadAnalysis} userId={user?.id} />
             </div>
           </div>
         ) : (
@@ -378,6 +306,7 @@ function App() {
                   columns: data.headers.length,
                   source: 'source' in data ? data.source : 'csv'
                 }}
+                userId={user?.id}
               />
             </div>
             <div className="lg:col-span-2">

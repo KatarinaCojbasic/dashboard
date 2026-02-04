@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { History, Clock, FileText, Trash2, Eye } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { getAnalysisLogs, deleteAnalysisLog } from '../lib/analysisLogs';
 
 interface SavedAnalysis {
   id: string;
@@ -12,39 +12,25 @@ interface SavedAnalysis {
 
 interface SavedAnalysesProps {
   onLoadAnalysis: (id: string) => void;
+  userId?: string;
 }
 
-const SavedAnalyses: React.FC<SavedAnalysesProps> = ({ onLoadAnalysis }) => {
+const SavedAnalyses: React.FC<SavedAnalysesProps> = ({ onLoadAnalysis, userId }) => {
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSavedAnalyses();
-  }, []);
+  }, [userId]);
 
   const loadSavedAnalyses = async () => {
     try {
       setIsLoading(true);
       setError(null);
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
-        setError('Please sign in to view saved analyses');
-        return;
-      }
-
-      const { data, error: fetchError } = await supabase
-        .from('analysis_logs')
-        .select('id, question, created_at, charts_generated, data_summary')
-        .eq('user_id', session.user.id)
-        .eq('is_saved', true)
-        .order('created_at', { ascending: false });
-
-      if (fetchError) throw fetchError;
-
-      setSavedAnalyses(data || []);
-    } catch (err: any) {
+      const logs = await getAnalysisLogs(true, userId);
+      setSavedAnalyses(logs);
+    } catch (err: unknown) {
       console.error('Failed to load saved analyses:', err);
       setError('Failed to load saved analyses');
     } finally {
@@ -53,22 +39,14 @@ const SavedAnalyses: React.FC<SavedAnalysesProps> = ({ onLoadAnalysis }) => {
   };
 
   const handleDeleteAnalysis = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering the load analysis
-    
+    e.stopPropagation();
     if (!confirm('Are you sure you want to delete this saved analysis?')) {
       return;
     }
-
     try {
-      const { error } = await supabase
-        .from('analysis_logs')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      setSavedAnalyses(prev => prev.filter(analysis => analysis.id !== id));
-    } catch (err: any) {
+      await deleteAnalysisLog(id, userId);
+      setSavedAnalyses((prev) => prev.filter((analysis) => analysis.id !== id));
+    } catch (err: unknown) {
       console.error('Failed to delete analysis:', err);
       alert('Failed to delete analysis');
     }

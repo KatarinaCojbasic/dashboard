@@ -1,0 +1,123 @@
+/**
+ * API client for analysis logs backend (PostgreSQL via Express).
+ * Used when VITE_API_URL is set.
+ */
+
+export interface AnalysisLogEntry {
+  id: string;
+  user_id: string;
+  question: string;
+  data_summary: {
+    records?: number;
+    columns?: number;
+    headers?: string[];
+    source?: string;
+  };
+  result_summary: string | null;
+  charts_generated: number;
+  created_at: string;
+  analysis_details: {
+    charts?: any[];
+    customCharts?: any[];
+    insights?: string[];
+  };
+  is_saved: boolean;
+}
+
+const LOCAL_USER_ID = 'local';
+
+function getBaseUrl(): string {
+  const url = import.meta.env.VITE_API_URL;
+  if (typeof url === 'string' && url) return url.replace(/\/$/, '');
+  return '';
+}
+
+async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
+  const base = getBaseUrl();
+  const url = base ? `${base}${path}` : path;
+  const res = await fetch(url, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error((err as { error?: string }).error || res.statusText);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+}
+
+export async function register(email: string, password: string, registrationKey: string): Promise<AuthUser> {
+  return fetchApi<AuthUser>('/api/register', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim(), password, registration_key: registrationKey }),
+  });
+}
+
+export async function login(email: string, password: string): Promise<AuthUser> {
+  return fetchApi<AuthUser>('/api/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim(), password }),
+  });
+}
+
+function userIdParam(userId: string | undefined): string {
+  return userId ?? LOCAL_USER_ID;
+}
+
+export async function getAnalysisLogs(savedOnly = false, userId?: string): Promise<AnalysisLogEntry[]> {
+  const q = new URLSearchParams({ user_id: userIdParam(userId) });
+  if (savedOnly) q.set('saved', 'true');
+  return fetchApi<AnalysisLogEntry[]>(`/api/analysis-logs?${q}`);
+}
+
+export async function getAnalysisLog(id: string, userId?: string): Promise<AnalysisLogEntry | null> {
+  try {
+    const q = new URLSearchParams({ user_id: userIdParam(userId) });
+    return await fetchApi<AnalysisLogEntry>(`/api/analysis-logs/${id}?${q}`);
+  } catch {
+    return null;
+  }
+}
+
+export async function saveAnalysisLog(
+  entry: Omit<AnalysisLogEntry, 'id' | 'created_at' | 'user_id'>,
+  userId?: string
+): Promise<string> {
+  const row = await fetchApi<AnalysisLogEntry>('/api/analysis-logs', {
+    method: 'POST',
+    body: JSON.stringify({ ...entry, user_id: userIdParam(userId) }),
+  });
+  return row.id;
+}
+
+export async function updateAnalysisLog(
+  id: string,
+  updates: Partial<Pick<AnalysisLogEntry, 'analysis_details' | 'charts_generated' | 'is_saved'>>,
+  userId?: string
+): Promise<void> {
+  const q = new URLSearchParams({ user_id: userIdParam(userId) });
+  await fetchApi<void>(`/api/analysis-logs/${id}?${q}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteAnalysisLog(id: string, userId?: string): Promise<void> {
+  const q = new URLSearchParams({ user_id: userIdParam(userId) });
+  await fetchApi<void>(`/api/analysis-logs/${id}?${q}`, { method: 'DELETE' });
+}
+
+export async function getRecentQuestions(limit: number = 5, userId?: string): Promise<string[]> {
+  const q = new URLSearchParams({ user_id: userIdParam(userId), limit: String(limit) });
+  return fetchApi<string[]>(`/api/recent-questions?${q}`);
+}
+
+export function isApiConfigured(): boolean {
+  return import.meta.env.PROD || Boolean(import.meta.env.VITE_API_URL);
+}

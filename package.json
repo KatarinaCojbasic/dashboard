@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "start": "npm run build && cd server && npm install && node index.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -15,8 +16,7 @@
     "react-dom": "^18.3.1",
     "chart.js": "^4.4.0",
     "react-chartjs-2": "^5.2.0",
-    "papaparse": "^5.4.1",
-    "@supabase/supabase-js": "^2.39.0"
+    "papaparse": "^5.4.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
