@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { LogIn, UserPlus, Loader2 } from 'lucide-react';
-import { register, login, isApiConfigured } from '../lib/api';
 import { supabase, isSupabaseConfigured, getSupabaseDiagnostic } from '../lib/supabase';
 
 export interface LocalUser {
@@ -84,39 +83,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       return;
     }
 
-    if (isApiConfigured()) {
-      if (!password || password.length < 6) {
-        setAuthError('Password must be at least 6 characters');
-        setAuthLoading(false);
-        return;
-      }
-      if (isSignUp && !registrationKey.trim()) {
-        setAuthError('Registration key required');
-        setAuthLoading(false);
-        return;
-      }
-      try {
-        const user = isSignUp
-          ? await register(emailTrim, password, registrationKey)
-          : await login(emailTrim, password);
-        if (!user?.id || !user?.email) {
-          setAuthError('Invalid response from server: missing user id or email');
-          return;
-        }
-        onSuccess({ id: user.id, email: user.email });
-        setEmail('');
-        setPassword('');
-        setRegistrationKey('');
-      } catch (err: unknown) {
-        console.error('[Login] API auth error:', err);
-        setAuthError(err instanceof Error ? err.message : 'Something went wrong');
-      } finally {
-        setAuthLoading(false);
-      }
-      return;
-    }
-
-    // No API/Supabase: local session only (no real auth, nothing saved to DB)
+    // No Supabase: local session only (no real auth, nothing saved to DB)
     try {
       onSuccess({ id: 'local', email: emailTrim });
       setEmail('');
@@ -128,7 +95,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
     }
   };
 
-  const isLocalMode = !isSupabaseConfigured() && !isApiConfigured();
+  const isLocalMode = !isSupabaseConfigured();
 
   return (
     <div className="space-y-6">
@@ -190,7 +157,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
           />
         </div>
 
-        {isSignUp && (isSupabaseConfigured() ? typeof import.meta.env.VITE_REGISTRATION_KEY === 'string' && import.meta.env.VITE_REGISTRATION_KEY.trim() !== '' : isApiConfigured()) && (
+        {isSignUp && isSupabaseConfigured() && typeof import.meta.env.VITE_REGISTRATION_KEY === 'string' && import.meta.env.VITE_REGISTRATION_KEY.trim() !== '' && (
           <div>
             <label className="block text-white/80 text-sm font-medium mb-2">
               Registration key
