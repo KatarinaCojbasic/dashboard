@@ -85,6 +85,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
         const user = isSignUp
           ? await register(emailTrim, password, registrationKey)
           : await login(emailTrim, password);
+        if (!user?.id || !user?.email) {
+          setAuthError('Invalid response from server: missing user id or email');
+          return;
+        }
         onSuccess({ id: user.id, email: user.email });
         setEmail('');
         setPassword('');

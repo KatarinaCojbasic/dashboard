@@ -70,18 +70,31 @@ export interface AuthUser {
   email: string;
 }
 
+function assertAuthUser(data: unknown): AuthUser {
+  if (data && typeof data === 'object' && 'id' in data && 'email' in data) {
+    const { id, email } = data as { id: unknown; email: unknown };
+    if (email && typeof email === 'string' && (typeof id === 'string' || typeof id === 'number')) {
+      return { id: String(id), email };
+    }
+  }
+  console.error('[API] Unexpected auth response shape:', data);
+  throw new Error('Invalid login response: server did not return user id and email');
+}
+
 export async function register(email: string, password: string, registrationKey: string): Promise<AuthUser> {
-  return fetchApi<AuthUser>('/api/register', {
+  const data = await fetchApi<unknown>('/api/register', {
     method: 'POST',
     body: JSON.stringify({ email: email.trim(), password, registration_key: registrationKey }),
   });
+  return assertAuthUser(data);
 }
 
 export async function login(email: string, password: string): Promise<AuthUser> {
-  return fetchApi<AuthUser>('/api/login', {
+  const data = await fetchApi<unknown>('/api/login', {
     method: 'POST',
     body: JSON.stringify({ email: email.trim(), password }),
   });
+  return assertAuthUser(data);
 }
 
 function userIdParam(userId: string | undefined): string {
