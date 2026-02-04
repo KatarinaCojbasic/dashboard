@@ -12,7 +12,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { AnalysisResult, CSVData, APIData, ChartData } from '../types';
+import { AnalysisResult, CSVData, ChartData } from '../types';
 import { TrendingUp, BarChart3, Eye, Zap, Settings, Plus, X, Play } from 'lucide-react';
 
 ChartJS.register(
@@ -29,7 +29,7 @@ ChartJS.register(
 
 interface DashboardProps {
   result: AnalysisResult;
-  csvData: CSVData | APIData;
+  csvData: CSVData;
   onCustomChartsChange?: (customCharts: ChartData[]) => void;
   initialCustomCharts?: ChartData[];
 }

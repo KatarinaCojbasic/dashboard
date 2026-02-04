@@ -23,17 +23,3 @@ export interface AnalysisResult {
   charts: ChartData[];
   insights: string[];
 }
-
-export interface APIConfig {
-  dateFrom: string;
-  dateTo: string;
-  locations: string;
-  panels: string;
-  deviceTypes: string;
-}
-
-export interface APIData {
-  headers: string[];
-  data: Record<string, any>[];
-  source: 'api';
-}

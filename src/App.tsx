@@ -6,7 +6,7 @@ import QuestionPanel from './components/QuestionPanel';
 import AuthButton from './components/AuthButton';
 import LoginForm from './components/LoginForm';
 import SavedAnalyses from './components/SavedAnalyses';
-import { CSVData, APIData, AnalysisResult, ChartData } from './types';
+import { CSVData, AnalysisResult, ChartData } from './types';
 import { updateAnalysisLog, saveAnalysisLog, getAnalysisLog } from './lib/analysisLogs';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 
@@ -82,15 +82,6 @@ function App() {
     setAnalysisResult(null);
   };
 
-  const handleAPIData = (apiData: APIData) => {
-    console.log('🔍 App received API data:', apiData);
-    console.log('🔍 API data headers:', apiData.headers);
-    console.log('🔍 API data rows:', apiData.data.length);
-    console.log('🔍 First row sample:', apiData.data[0]);
-    setData(apiData);
-    setAnalysisResult(null);
-  };
-
   const handleNewUpload = () => {
     setData(null);
     setAnalysisResult(null);
@@ -114,7 +105,7 @@ function App() {
           records: data.data.length,
           columns: data.headers.length,
           headers: data.headers,
-          source: 'source' in data ? data.source : 'csv'
+          source: 'csv'
         },
         result_summary: result.summary,
         charts_generated: result.charts?.length || 0,
@@ -142,8 +133,6 @@ function App() {
       const dataSummary = analysisData.data_summary || {};
       const headers = dataSummary.headers || [];
       const recordCount = dataSummary.records || 0;
-      const dataSource = dataSummary.source || 'csv';
-
       const dummyData = Array(recordCount).fill(null).map(() => {
         const row: { [key: string]: string } = {};
         headers.forEach((header: string) => {
@@ -152,11 +141,7 @@ function App() {
         return row;
       });
 
-      if (dataSource === 'api') {
-        setData({ headers, data: dummyData, source: 'api' });
-      } else {
-        setData({ headers, data: dummyData });
-      }
+      setData({ headers, data: dummyData });
 
       setAnalysisResult({
         summary: analysisData.result_summary || '',
@@ -177,17 +162,13 @@ function App() {
     }
   };
 
-  const generateFallbackAnalysis = (data: CSVData | APIData, question: string): AnalysisResult => {
-    // Simple fallback analysis
+  const generateFallbackAnalysis = (data: CSVData, question: string): AnalysisResult => {
     const numericColumns = data.headers.filter(header => {
       return data.data.some(row => !isNaN(parseFloat(String(row[header]))));
     });
 
-    const dataSource = 'source' in data ? data.source : 'csv';
-    const sourceText = dataSource === 'api' ? 'API' : 'CSV';
-
     return {
-      summary: `Analysis for: "${question}". Found ${data.data.length} records with ${numericColumns.length} numeric columns from ${sourceText} source.`,
+      summary: `Analysis for: "${question}". Found ${data.data.length} records with ${numericColumns.length} numeric columns from CSV.`,
       charts: [
         {
           type: 'bar',
@@ -208,7 +189,7 @@ function App() {
         }
       ],
       insights: [
-        `Dataset contains ${data.data.length} records from ${sourceText}`,
+        `Dataset contains ${data.data.length} records from CSV`,
         `Found ${numericColumns.length} numeric columns for analysis`,
         'Local analysis – all processing runs in your browser'
       ]
@@ -313,10 +294,7 @@ function App() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div>
               <div className="text-center py-8">
-                <DataSourceSelector 
-                  onCSVUpload={handleCSVUpload}
-                  onAPIData={handleAPIData}
-                />
+                <DataSourceSelector onCSVUpload={handleCSVUpload} />
               </div>
             </div>
             <div>
@@ -332,7 +310,7 @@ function App() {
                 dataInfo={{
                   records: data.data.length,
                   columns: data.headers.length,
-                  source: 'source' in data ? data.source : 'csv'
+                  source: 'csv'
                 }}
                 userId={user?.id}
               />
