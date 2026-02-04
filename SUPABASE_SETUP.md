@@ -67,6 +67,8 @@ In your project `.env` (copy from `.env.example`):
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
+# Optional: require a registration key for sign-up (users must enter this to create an account)
+# VITE_REGISTRATION_KEY=your-secret-key
 ```
 
 Get **Project URL** and **anon public** key from Supabase: **Project Settings** → **API**.

@@ -43,6 +43,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
         setAuthLoading(false);
         return;
       }
+      const expectedKey = import.meta.env.VITE_REGISTRATION_KEY;
+      if (isSignUp && typeof expectedKey === 'string' && expectedKey.trim() !== '') {
+        if (registrationKey.trim() !== expectedKey.trim()) {
+          setAuthError('Invalid registration key');
+          setAuthLoading(false);
+          return;
+        }
+      }
       try {
         if (isSignUp) {
           const { data, error } = await supabase.auth.signUp({ email: emailTrim, password });
@@ -54,6 +62,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
           if (user?.email) onSuccess({ id: user.id, email: user.email });
           setEmail('');
           setPassword('');
+          setRegistrationKey('');
         } else {
           const { data, error } = await supabase.auth.signInWithPassword({ email: emailTrim, password });
           if (error) {
@@ -181,7 +190,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
           />
         </div>
 
-        {isSignUp && isApiConfigured() && !isSupabaseConfigured() && (
+        {isSignUp && (isSupabaseConfigured() ? typeof import.meta.env.VITE_REGISTRATION_KEY === 'string' && import.meta.env.VITE_REGISTRATION_KEY.trim() !== '' : isApiConfigured()) && (
           <div>
             <label className="block text-white/80 text-sm font-medium mb-2">
               Registration key
