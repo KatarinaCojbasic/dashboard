@@ -150,5 +150,5 @@ export async function getRecentQuestions(limit: number = 5, userId?: string): Pr
 }
 
 export function isApiConfigured(): boolean {
-  return import.meta.env.PROD || Boolean(import.meta.env.VITE_API_URL);
+  return Boolean(import.meta.env.VITE_API_URL);
 }
