@@ -71,4 +71,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 Get **Project URL** and **anon public** key from Supabase: **Project Settings** → **API**.
 
-Restart the dev server after changing env (`npm run dev` or `npm run start`).
+**Important:** Vite bakes `VITE_*` variables into the app **at build time**. So:
+
+- **Local dev:** Restart the dev server after changing `.env` (`npm run dev`).
+- **Production (e.g. Render):** Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in your host’s **Environment** (e.g. Render → Service → Environment), then trigger a **new build**. If you build without these set, the app will run in “local” mode (no real auth, nothing saved to DB).

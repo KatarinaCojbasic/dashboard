@@ -102,7 +102,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       return;
     }
 
-    // No API/Supabase: local session only
+    // No API/Supabase: local session only (no real auth, nothing saved to DB)
     try {
       onSuccess({ id: 'local', email: emailTrim });
       setEmail('');
@@ -114,8 +114,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
     }
   };
 
+  const isLocalMode = !isSupabaseConfigured() && !isApiConfigured();
+
   return (
     <div className="space-y-6">
+      {isLocalMode && (
+        <div className="p-3 bg-amber-500/20 border border-amber-500/40 rounded-lg text-amber-200 text-sm">
+          <strong>Local mode.</strong> No account is saved and any email will “log in”. To use real auth and save users: set <code className="bg-white/10 px-1 rounded">VITE_SUPABASE_URL</code> and <code className="bg-white/10 px-1 rounded">VITE_SUPABASE_ANON_KEY</code> in your environment, then <strong>rebuild</strong> the app (e.g. <code className="bg-white/10 px-1 rounded">npm run build</code>).
+        </div>
+      )}
       <div className="flex justify-center space-x-1 bg-white/5 rounded-lg p-1">
         <button
           type="button"
