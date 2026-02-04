@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { LogIn, UserPlus, Loader2 } from 'lucide-react';
 import { register, login, isApiConfigured } from '../lib/api';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface LocalUser {
   id: string;
@@ -31,6 +32,36 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       return;
     }
 
+    if (isSupabaseConfigured() && supabase) {
+      if (!password || password.length < 6) {
+        setAuthError('Password must be at least 6 characters');
+        setAuthLoading(false);
+        return;
+      }
+      try {
+        if (isSignUp) {
+          const { data, error } = await supabase.auth.signUp({ email: emailTrim, password });
+          if (error) throw error;
+          const user = data.user;
+          if (user?.email) onSuccess({ id: user.id, email: user.email });
+          setEmail('');
+          setPassword('');
+        } else {
+          const { data, error } = await supabase.auth.signInWithPassword({ email: emailTrim, password });
+          if (error) throw error;
+          const user = data.user;
+          if (user?.email) onSuccess({ id: user.id, email: user.email });
+          setEmail('');
+          setPassword('');
+        }
+      } catch (err: unknown) {
+        setAuthError(err instanceof Error ? err.message : 'Something went wrong');
+      } finally {
+        setAuthLoading(false);
+      }
+      return;
+    }
+
     if (isApiConfigured()) {
       if (!password || password.length < 6) {
         setAuthError('Password must be at least 6 characters');
@@ -58,7 +89,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       return;
     }
 
-    // No API: local session only
+    // No API/Supabase: local session only
     try {
       onSuccess({ id: 'local', email: emailTrim });
       setEmail('');
@@ -125,7 +156,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
           />
         </div>
 
-        {isSignUp && (
+        {isSignUp && isApiConfigured() && !isSupabaseConfigured() && (
           <div>
             <label className="block text-white/80 text-sm font-medium mb-2">
               Registration key

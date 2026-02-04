@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, BarChart3, PieChart, TrendingUp, Brain, RotateCcw, Save, CheckCircle } from 'lucide-react';
 import DataSourceSelector from './components/DataSourceSelector';
 import Dashboard from './components/Dashboard';
@@ -8,6 +8,7 @@ import LoginForm from './components/LoginForm';
 import SavedAnalyses from './components/SavedAnalyses';
 import { CSVData, APIData, AnalysisResult, ChartData } from './types';
 import { updateAnalysisLog, saveAnalysisLog, getAnalysisLog } from './lib/analysisLogs';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const USER_STORAGE_KEY = 'user';
 
@@ -27,6 +28,28 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [user, setUser] = useState<{ id: string; email: string } | null>(getStoredUser);
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured());
+
+  useEffect(() => {
+    if (!isSupabaseConfigured() || !supabase) {
+      setAuthReady(true);
+      return;
+    }
+    const setUserFromSession = (session: { user: { id: string; email?: string } } | null) => {
+      if (session?.user?.email) {
+        const u = { id: session.user.id, email: session.user.email };
+        setUser(u);
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u));
+      } else {
+        setUser(null);
+        localStorage.removeItem(USER_STORAGE_KEY);
+      }
+      setAuthReady(true);
+    };
+    supabase.auth.getSession().then(({ data: { session } }) => setUserFromSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUserFromSession(session));
+    return () => subscription.unsubscribe();
+  }, []);
   const [currentAnalysisLogId, setCurrentAnalysisLogId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
@@ -240,7 +263,8 @@ function App() {
                 {user && (
                   <AuthButton
                     user={user}
-                    onSignOut={() => {
+                    onSignOut={async () => {
+                      if (isSupabaseConfigured() && supabase) await supabase.auth.signOut();
                       setUser(null);
                       localStorage.removeItem(USER_STORAGE_KEY);
                     }}
@@ -265,7 +289,11 @@ function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!user ? (
+        {!authReady ? (
+          <div className="flex items-center justify-center py-24">
+            <div className="animate-spin h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full" />
+          </div>
+        ) : !user ? (
           <div className="text-center py-16">
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 max-w-md mx-auto border border-white/20">
               <Brain className="h-16 w-16 mx-auto mb-6 text-blue-400" />
