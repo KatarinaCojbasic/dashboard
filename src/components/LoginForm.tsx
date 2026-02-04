@@ -41,21 +41,29 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       try {
         if (isSignUp) {
           const { data, error } = await supabase.auth.signUp({ email: emailTrim, password });
-          if (error) throw error;
+          if (error) {
+            console.error('[Supabase] signUp error:', error.message, error.status, error);
+            throw error;
+          }
           const user = data.user;
           if (user?.email) onSuccess({ id: user.id, email: user.email });
           setEmail('');
           setPassword('');
         } else {
           const { data, error } = await supabase.auth.signInWithPassword({ email: emailTrim, password });
-          if (error) throw error;
+          if (error) {
+            console.error('[Supabase] signIn error:', error.message, error.status, error);
+            throw error;
+          }
           const user = data.user;
           if (user?.email) onSuccess({ id: user.id, email: user.email });
           setEmail('');
           setPassword('');
         }
       } catch (err: unknown) {
-        setAuthError(err instanceof Error ? err.message : 'Something went wrong');
+        console.error('[Login] Auth error:', err);
+        const message = err instanceof Error ? err.message : (typeof err === 'object' && err !== null && 'message' in err ? String((err as { message: unknown }).message) : 'Something went wrong');
+        setAuthError(message);
       } finally {
         setAuthLoading(false);
       }
@@ -82,6 +90,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
         setPassword('');
         setRegistrationKey('');
       } catch (err: unknown) {
+        console.error('[Login] API auth error:', err);
         setAuthError(err instanceof Error ? err.message : 'Something went wrong');
       } finally {
         setAuthLoading(false);

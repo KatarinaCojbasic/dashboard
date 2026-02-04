@@ -2,6 +2,10 @@
 
 When `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set in `.env`, the app uses Supabase for **auth** and **analysis logs**.
 
+## Do you need a users table?
+
+**No.** Supabase Auth stores users in `auth.users` (managed by Supabase). You do **not** need to create a custom `users` table for login/signup. The `analysis_logs` table references `auth.users(id)` via `user_id`; that’s enough.
+
 ## 1. Create the `analysis_logs` table
 
 In Supabase: **SQL Editor** → New query → run:

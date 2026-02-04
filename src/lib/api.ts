@@ -39,12 +39,30 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
   });
+  const text = await res.text();
+  const parseJson = (): unknown => {
+    if (!text || text.trim() === '') return undefined;
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('[API] Non-JSON response:', { path, status: res.status, statusText: res.statusText, bodyPreview: text.slice(0, 200) });
+      throw new Error(`Server returned invalid JSON (${res.status} ${res.statusText}). Check console for details.`);
+    }
+  };
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error((err as { error?: string }).error || res.statusText);
+    let message = res.statusText || 'Request failed';
+    try {
+      const err = parseJson() as { error?: string } | undefined;
+      if (err?.error) message = err.error;
+    } catch {
+      // parseJson already logged; use status + body preview
+      message = `${res.status} ${res.statusText}` + (text ? `: ${text.slice(0, 100)}` : '');
+    }
+    console.error('[API] Error response:', { path, status: res.status, statusText: res.statusText, message, body: text.slice(0, 300) });
+    throw new Error(message);
   }
-  if (res.status === 204) return undefined as T;
-  return res.json();
+  if (res.status === 204 || !text || text.trim() === '') return undefined as T;
+  return parseJson() as T;
 }
 
 export interface AuthUser {
