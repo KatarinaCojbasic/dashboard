@@ -9,6 +9,7 @@ import SavedAnalyses from './components/SavedAnalyses';
 import { CSVData, AnalysisResult, ChartData } from './types';
 import { updateAnalysisLog, saveAnalysisLog, getAnalysisLog } from './lib/analysisLogs';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { analyzeWithAI, type AIProvider } from './lib/aiAnalysis';
 
 const USER_STORAGE_KEY = 'user';
 
@@ -55,6 +56,8 @@ function App() {
   const [isSaved, setIsSaved] = useState(false);
   const [customCharts, setCustomCharts] = useState<ChartData[]>([]);
   const [isLoadedAnalysis, setIsLoadedAnalysis] = useState(false);
+  const [aiProvider, setAiProvider] = useState<AIProvider>('gpt');
+  const [apiToken, setApiToken] = useState('');
 
   const handleSaveAnalysis = async () => {
     if (!currentAnalysisLogId || !analysisResult || !user) return;
@@ -98,7 +101,9 @@ function App() {
     setIsAnalyzing(true);
     setIsLoadedAnalysis(false);
     try {
-      const result = generateFallbackAnalysis(data, question);
+      const result = apiToken.trim()
+        ? await analyzeWithAI(aiProvider, apiToken.trim(), data, question)
+        : generateFallbackAnalysis(data, question);
       setAnalysisResult(result);
       setIsSaved(false);
 
@@ -118,6 +123,11 @@ function App() {
       setCurrentAnalysisLogId(id);
     } catch (error) {
       console.error('Analysis error:', error);
+      setAnalysisResult({
+        summary: `Error: ${error instanceof Error ? error.message : 'Analysis failed'}. Try checking your API token or use without token for local analysis.`,
+        charts: [],
+        insights: []
+      });
     } finally {
       setIsAnalyzing(false);
     }
@@ -306,7 +316,15 @@ function App() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div>
               <div className="text-center py-8">
-                <DataSourceSelector onCSVUpload={handleCSVUpload} />
+                <DataSourceSelector
+                  onCSVUpload={handleCSVUpload}
+                  aiProvider={aiProvider}
+                  apiToken={apiToken}
+                  onAISettingsChange={({ provider, token }) => {
+                    setAiProvider(provider);
+                    setApiToken(token);
+                  }}
+                />
               </div>
             </div>
             <div>
