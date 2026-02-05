@@ -76,7 +76,7 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
     yColumn: '',
     aggregation: 'sum' as 'sum' | 'avg' | 'count' | 'max' | 'min',
     paletteIndex: 0,
-    customColor: '#3b82f6'
+    customColors: ['', '', '', '', '', '', '', ''] as string[]
   });
 
   // Update editable charts when result changes
@@ -116,15 +116,14 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
       const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
       return `rgba(${r},${g},${b},${alpha})`;
     };
-    const singleColor = hexToRgba(newChart.customColor, 0.8);
-    const singleBorder = hexToRgba(newChart.customColor, 1);
-    const colors = palette;
-    const borderColors = colors.map(c => c.replace('0.8', '1'));
-    
+    const isValidHex = (s: string) => /^#[0-9A-Fa-f]{6}$/.test(s);
+    const customRgba = newChart.customColors.filter(isValidHex).map(h => hexToRgba(h, 0.8));
+    const chartColors = customRgba.length > 0 ? [...customRgba, ...palette] : palette;
+    const borderColors = chartColors.map(c => c.replace('0.8', '1'));
+
     let chartData: ChartData;
-    
+
     if (newChart.type === 'pie' || newChart.type === 'doughnut') {
-      // For pie/doughnut charts, count occurrences of each category
       const valueCounts: Record<string, number> = {};
       csvData.data.forEach(row => {
         const value = String(row[newChart.xColumn]);
@@ -132,11 +131,10 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
           valueCounts[value] = (valueCounts[value] || 0) + 1;
         }
       });
-      
       const sortedEntries = Object.entries(valueCounts)
         .sort(([,a], [,b]) => b - a)
         .slice(0, 10);
-      
+      const n = sortedEntries.length;
       chartData = {
         type: newChart.type,
         title: newChart.title || `${newChart.xColumn} Distribution`,
@@ -145,53 +143,36 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
           datasets: [{
             label: 'Count',
             data: sortedEntries.map(([, value]) => value),
-            backgroundColor: palette.slice(0, sortedEntries.length),
-            borderColor: borderColors.slice(0, sortedEntries.length),
+            backgroundColor: chartColors.slice(0, n),
+            borderColor: borderColors.slice(0, n),
             borderWidth: 2
           }]
         }
       };
     } else {
-      // For bar/line charts, aggregate numeric data by categories
       if (!newChart.yColumn) return;
-      
       const groupedData: Record<string, number[]> = {};
       csvData.data.forEach(row => {
         const xValue = String(row[newChart.xColumn]);
         const yValue = parseFloat(String(row[newChart.yColumn]));
-        
         if (xValue && !isNaN(yValue)) {
-          if (!groupedData[xValue]) {
-            groupedData[xValue] = [];
-          }
+          if (!groupedData[xValue]) groupedData[xValue] = [];
           groupedData[xValue].push(yValue);
         }
       });
-      
       const processedData = Object.entries(groupedData).map(([key, values]) => {
         let aggregatedValue: number;
         switch (newChart.aggregation) {
-          case 'sum':
-            aggregatedValue = values.reduce((sum, val) => sum + val, 0);
-            break;
-          case 'avg':
-            aggregatedValue = values.reduce((sum, val) => sum + val, 0) / values.length;
-            break;
-          case 'count':
-            aggregatedValue = values.length;
-            break;
-          case 'max':
-            aggregatedValue = Math.max(...values);
-            break;
-          case 'min':
-            aggregatedValue = Math.min(...values);
-            break;
-          default:
-            aggregatedValue = values.reduce((sum, val) => sum + val, 0);
+          case 'sum': aggregatedValue = values.reduce((s, v) => s + v, 0); break;
+          case 'avg': aggregatedValue = values.reduce((s, v) => s + v, 0) / values.length; break;
+          case 'count': aggregatedValue = values.length; break;
+          case 'max': aggregatedValue = Math.max(...values); break;
+          case 'min': aggregatedValue = Math.min(...values); break;
+          default: aggregatedValue = values.reduce((s, v) => s + v, 0);
         }
         return { key, value: aggregatedValue };
       }).sort((a, b) => b.value - a.value).slice(0, 20);
-      
+      const n = processedData.length;
       chartData = {
         type: newChart.type,
         title: newChart.title || `${newChart.yColumn} by ${newChart.xColumn} (${newChart.aggregation})`,
@@ -200,8 +181,8 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
           datasets: [{
             label: `${newChart.aggregation.charAt(0).toUpperCase() + newChart.aggregation.slice(1)} of ${newChart.yColumn}`,
             data: processedData.map(item => item.value),
-            backgroundColor: singleColor,
-            borderColor: singleBorder,
+            backgroundColor: chartColors.slice(0, n),
+            borderColor: borderColors.slice(0, n),
             borderWidth: 2
           }]
         }
@@ -217,7 +198,7 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
       yColumn: '',
       aggregation: 'sum',
       paletteIndex: newChart.paletteIndex,
-      customColor: newChart.customColor
+      customColors: newChart.customColors
     });
   };
   
@@ -405,7 +386,7 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
             <Plus className="h-6 w-6 text-blue-400" />
-            <h3 className="text-lg font-semibold text-white">Create Your Dashboard</h3>
+            <h3 className="text-lg font-semibold text-white">{canAddCharts ? 'Create Your Dashboard' : 'Created Dashboard'}</h3>
           </div>
           {canAddCharts && (
             <button
@@ -523,34 +504,48 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
               </div>
             </div>
 
-            {/* Boje: paleta za pie/doughnut, jedan ton za bar/line */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {/* Palette + optional per-bar/slice colors */}
+            <div className="space-y-4 mb-4">
+              <div>
+                <label className="block text-white/80 text-sm font-medium mb-2">Paleta boja (podrazumevano)</label>
+                <select
+                  value={newChart.paletteIndex}
+                  onChange={(e) => setNewChart(prev => ({ ...prev, paletteIndex: Number(e.target.value) }))}
+                  className="w-full max-w-xs px-3 py-2 bg-gray-800 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  style={{ color: 'white', backgroundColor: '#1f2937' }}
+                >
+                  {CHART_COLOR_PALETTES.map((p, i) => (
+                    <option key={i} value={i} style={{ backgroundColor: '#1f2937', color: 'white' }}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-white/80 text-sm font-medium mb-2">
-                  {newChart.type === 'pie' || newChart.type === 'doughnut' ? 'Paleta boja' : 'Boja serije'}
+                  Izaberi boje (opciono – prva boja za prvi stubić/slice, druga za drugi, itd.)
                 </label>
-                {newChart.type === 'pie' || newChart.type === 'doughnut' ? (
-                  <select
-                    value={newChart.paletteIndex}
-                    onChange={(e) => setNewChart(prev => ({ ...prev, paletteIndex: Number(e.target.value) }))}
-                    className="w-full px-3 py-2 bg-gray-800 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    style={{ color: 'white', backgroundColor: '#1f2937' }}
-                  >
-                    {CHART_COLOR_PALETTES.map((p, i) => (
-                      <option key={i} value={i} style={{ backgroundColor: '#1f2937', color: 'white' }}>{p.name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-wrap gap-2 items-center">
+                  {newChart.customColors.map((color, i) => (
                     <input
+                      key={i}
                       type="color"
-                      value={newChart.customColor}
-                      onChange={(e) => setNewChart(prev => ({ ...prev, customColor: e.target.value }))}
-                      className="h-10 w-14 cursor-pointer rounded border border-white/20 bg-white/10"
+                      value={color || '#3b82f6'}
+                      onChange={(e) => {
+                        const next = [...newChart.customColors];
+                        next[i] = e.target.value;
+                        setNewChart(prev => ({ ...prev, customColors: next }));
+                      }}
+                      className="h-9 w-9 cursor-pointer rounded border border-white/20 bg-white/10 flex-shrink-0"
+                      title={`Boja ${i + 1}`}
                     />
-                    <span className="text-white/70 text-sm">{newChart.customColor}</span>
-                  </div>
-                )}
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setNewChart(prev => ({ ...prev, customColors: ['', '', '', '', '', '', '', ''] }))}
+                    className="text-xs px-2 py-1.5 rounded bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-colors"
+                  >
+                    Obriši sve
+                  </button>
+                </div>
               </div>
             </div>
 
