@@ -1,5 +1,5 @@
-import React from 'react';
-import { Upload, Bot } from 'lucide-react';
+import React, { useState } from 'react';
+import { Upload, Bot, Eye, EyeOff } from 'lucide-react';
 import CSVUploader from './CSVUploader';
 import { CSVData } from '../types';
 import type { AIProvider } from '../lib/aiAnalysis';
@@ -22,6 +22,7 @@ const DataSourceSelector: React.FC<DataSourceSelectorProps> = ({
   apiToken,
   onAISettingsChange
 }) => {
+  const [showToken, setShowToken] = useState(false);
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
@@ -94,13 +95,23 @@ const DataSourceSelector: React.FC<DataSourceSelectorProps> = ({
           </div>
           <div>
             <label className="block text-white/80 text-sm font-medium mb-2">API token</label>
-            <input
-              type="password"
-              value={apiToken}
-              onChange={(e) => onAISettingsChange({ provider: aiProvider, token: e.target.value })}
-              placeholder={aiProvider === 'gpt' ? 'sk-...' : 'sk-ant-...'}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            />
+            <div className="flex gap-2">
+              <input
+                type={showToken ? 'text' : 'password'}
+                value={apiToken ?? ''}
+                onChange={(e) => onAISettingsChange({ provider: aiProvider, token: e.target.value })}
+                placeholder={aiProvider === 'gpt' ? 'sk-...' : 'sk-ant-...'}
+                className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+              <button
+                type="button"
+                onClick={() => setShowToken((s) => !s)}
+                className="px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-white/80 hover:text-white transition-colors"
+                title={showToken ? 'Hide token' : 'Show token'}
+              >
+                {showToken ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
           </div>
         </div>
       </div>
