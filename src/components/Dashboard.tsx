@@ -57,6 +57,10 @@ export const CHART_COLOR_PALETTES: { name: string; colors: string[] }[] = [
 
 const DEFAULT_PALETTE = CHART_COLOR_PALETTES[0].colors;
 
+const DEFAULT_CHART_COLORS = [
+  '#3b82f6', '#22c55e', '#f97316', '#ec4899', '#a855f7', '#0ea5e9', '#eab308', '#14b8a6'
+];
+
 interface DashboardProps {
   result: AnalysisResult;
   csvData: CSVData;
@@ -76,7 +80,7 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
     yColumn: '',
     aggregation: 'sum' as 'sum' | 'avg' | 'count' | 'max' | 'min',
     paletteIndex: 0,
-    customColors: ['', '', '', '', '', '', '', ''] as string[]
+    customColors: [...DEFAULT_CHART_COLORS] as string[]
   });
 
   // Update editable charts when result changes
@@ -385,7 +389,9 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
       <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
-            <Plus className="h-6 w-6 text-blue-400" />
+            {(canAddCharts && customCharts.length === 0 && !showCustomBuilder) && (
+              <Plus className="h-6 w-6 text-blue-400" />
+            )}
             <h3 className="text-lg font-semibold text-white">{canAddCharts ? 'Create Your Dashboard' : 'Created Dashboard'}</h3>
           </div>
           {canAddCharts && (
@@ -540,7 +546,7 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
                   ))}
                   <button
                     type="button"
-                    onClick={() => setNewChart(prev => ({ ...prev, customColors: ['', '', '', '', '', '', '', ''] }))}
+                    onClick={() => setNewChart(prev => ({ ...prev, customColors: [...DEFAULT_CHART_COLORS] }))}
                     className="text-xs px-2 py-1.5 rounded bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-colors"
                   >
                     Obriši sve
