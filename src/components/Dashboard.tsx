@@ -27,14 +27,45 @@ ChartJS.register(
   Legend
 );
 
+// Paleta boja za chartove (fill i border)
+export const CHART_COLOR_PALETTES: { name: string; colors: string[] }[] = [
+  {
+    name: 'Plavo–ljubičasta',
+    colors: ['rgba(59, 130, 246, 0.8)', 'rgba(147, 51, 234, 0.8)', 'rgba(99, 102, 241, 0.8)', 'rgba(168, 85, 247, 0.8)', 'rgba(79, 70, 229, 0.8)', 'rgba(139, 92, 246, 0.8)', 'rgba(67, 56, 202, 0.8)', 'rgba(124, 58, 237, 0.8)', 'rgba(129, 140, 248, 0.8)', 'rgba(167, 139, 250, 0.8)']
+  },
+  {
+    name: 'Zelena–tirkizna',
+    colors: ['rgba(34, 197, 94, 0.8)', 'rgba(20, 184, 166, 0.8)', 'rgba(16, 185, 129, 0.8)', 'rgba(52, 211, 153, 0.8)', 'rgba(34, 211, 238, 0.8)', 'rgba(6, 182, 212, 0.8)', 'rgba(45, 212, 191, 0.8)', 'rgba(94, 234, 212, 0.8)', 'rgba(134, 239, 172, 0.8)', 'rgba(153, 246, 228, 0.8)']
+  },
+  {
+    name: 'Narandžasta–crvena',
+    colors: ['rgba(249, 115, 22, 0.8)', 'rgba(239, 68, 68, 0.8)', 'rgba(251, 146, 60, 0.8)', 'rgba(248, 113, 113, 0.8)', 'rgba(234, 88, 12, 0.8)', 'rgba(220, 38, 38, 0.8)', 'rgba(253, 186, 116, 0.8)', 'rgba(252, 165, 165, 0.8)', 'rgba(251, 191, 36, 0.8)', 'rgba(250, 204, 21, 0.8)']
+  },
+  {
+    name: 'Roze–ljubičasta',
+    colors: ['rgba(236, 72, 153, 0.8)', 'rgba(219, 39, 119, 0.8)', 'rgba(192, 132, 252, 0.8)', 'rgba(244, 114, 182, 0.8)', 'rgba(217, 70, 239, 0.8)', 'rgba(251, 113, 133, 0.8)', 'rgba(232, 121, 249, 0.8)', 'rgba(249, 168, 212, 0.8)', 'rgba(216, 180, 254, 0.8)', 'rgba(240, 171, 252, 0.8)']
+  },
+  {
+    name: 'Morska–plava',
+    colors: ['rgba(14, 165, 233, 0.8)', 'rgba(6, 182, 212, 0.8)', 'rgba(2, 132, 199, 0.8)', 'rgba(56, 189, 248, 0.8)', 'rgba(34, 211, 238, 0.8)', 'rgba(125, 211, 252, 0.8)', 'rgba(103, 232, 249, 0.8)', 'rgba(8, 145, 178, 0.8)', 'rgba(22, 163, 74, 0.8)', 'rgba(34, 197, 94, 0.8)']
+  },
+  {
+    name: 'Miks (sve)',
+    colors: ['rgba(59, 130, 246, 0.8)', 'rgba(34, 197, 94, 0.8)', 'rgba(249, 115, 22, 0.8)', 'rgba(236, 72, 153, 0.8)', 'rgba(168, 85, 247, 0.8)', 'rgba(14, 165, 233, 0.8)', 'rgba(251, 191, 36, 0.8)', 'rgba(239, 68, 68, 0.8)', 'rgba(20, 184, 166, 0.8)', 'rgba(139, 92, 246, 0.8)']
+  }
+];
+
+const DEFAULT_PALETTE = CHART_COLOR_PALETTES[0].colors;
+
 interface DashboardProps {
   result: AnalysisResult;
   csvData: CSVData;
   onCustomChartsChange?: (customCharts: ChartData[]) => void;
   initialCustomCharts?: ChartData[];
+  canAddCharts?: boolean;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsChange, initialCustomCharts }) => {
+const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsChange, initialCustomCharts, canAddCharts = true }) => {
   const [editableCharts, setEditableCharts] = React.useState<ChartData[]>(result.charts);
   const [customCharts, setCustomCharts] = React.useState<ChartData[]>(initialCustomCharts || []);
   const [showCustomBuilder, setShowCustomBuilder] = React.useState(false);
@@ -43,7 +74,9 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
     title: '',
     xColumn: '',
     yColumn: '',
-    aggregation: 'sum' as 'sum' | 'avg' | 'count' | 'max' | 'min'
+    aggregation: 'sum' as 'sum' | 'avg' | 'count' | 'max' | 'min',
+    paletteIndex: 0,
+    customColor: '#3b82f6'
   });
 
   // Update editable charts when result changes
@@ -76,21 +109,17 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
 
   const generateCustomChart = () => {
     if (!newChart.xColumn) return;
-    
-    const colors = [
-      'rgba(59, 130, 246, 0.8)',   // Blue
-      'rgba(147, 51, 234, 0.8)',   // Purple
-      'rgba(34, 197, 94, 0.8)',    // Green
-      'rgba(249, 115, 22, 0.8)',   // Orange
-      'rgba(236, 72, 153, 0.8)',   // Pink
-      'rgba(14, 165, 233, 0.8)',   // Sky
-      'rgba(168, 85, 247, 0.8)',   // Violet
-      'rgba(34, 211, 238, 0.8)',   // Cyan
-      'rgba(251, 191, 36, 0.8)',   // Amber
-      'rgba(239, 68, 68, 0.8)',    // Red
-    ];
-    
-    const borderColors = colors.map(color => color.replace('0.8', '1'));
+
+    const palette = CHART_COLOR_PALETTES[newChart.paletteIndex]?.colors ?? DEFAULT_PALETTE;
+    const hexToRgba = (hex: string, alpha: number) => {
+      const n = parseInt(hex.slice(1), 16);
+      const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+      return `rgba(${r},${g},${b},${alpha})`;
+    };
+    const singleColor = hexToRgba(newChart.customColor, 0.8);
+    const singleBorder = hexToRgba(newChart.customColor, 1);
+    const colors = palette;
+    const borderColors = colors.map(c => c.replace('0.8', '1'));
     
     let chartData: ChartData;
     
@@ -116,7 +145,7 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
           datasets: [{
             label: 'Count',
             data: sortedEntries.map(([, value]) => value),
-            backgroundColor: colors.slice(0, sortedEntries.length),
+            backgroundColor: palette.slice(0, sortedEntries.length),
             borderColor: borderColors.slice(0, sortedEntries.length),
             borderWidth: 2
           }]
@@ -171,14 +200,14 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
           datasets: [{
             label: `${newChart.aggregation.charAt(0).toUpperCase() + newChart.aggregation.slice(1)} of ${newChart.yColumn}`,
             data: processedData.map(item => item.value),
-            backgroundColor: colors[0],
-            borderColor: borderColors[0],
+            backgroundColor: singleColor,
+            borderColor: singleBorder,
             borderWidth: 2
           }]
         }
       };
     }
-    
+
     setCustomCharts(prev => [...prev, chartData]);
     setShowCustomBuilder(false);
     setNewChart({
@@ -186,7 +215,9 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
       title: '',
       xColumn: '',
       yColumn: '',
-      aggregation: 'sum'
+      aggregation: 'sum',
+      paletteIndex: newChart.paletteIndex,
+      customColor: newChart.customColor
     });
   };
   
@@ -331,38 +362,36 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
                 <BarChart3 className="h-5 w-5 text-blue-400" />
                 <h4 className="text-lg font-medium text-white">{chart.title}</h4>
               </div>
-              
-              {/* Chart Type Selector */}
-              <div className="relative group">
-                <button className="flex items-center space-x-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-white/80 hover:text-white transition-all duration-200">
-                  <Settings className="h-4 w-4" />
-                  <span className="text-sm">{getChartTypeIcon(chart.type)}</span>
-                </button>
-                
-                {/* Dropdown Menu */}
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
-                  <div className="p-2">
-                    <div className="text-xs text-white/60 mb-2 px-2">Chart Type</div>
-                    {chartTypeOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => handleChartTypeChange(index, option.value as any)}
-                        className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-sm transition-all duration-200 ${
-                          chart.type === option.value
-                            ? 'bg-blue-500/30 text-blue-300 border border-blue-500/50'
-                            : 'text-white/80 hover:bg-white/10 hover:text-white'
-                        }`}
-                      >
-                        <span className="text-base">{option.icon}</span>
-                        <span>{option.label}</span>
-                        {chart.type === option.value && (
-                          <span className="ml-auto text-blue-400">✓</span>
-                        )}
-                      </button>
-                    ))}
+              {canAddCharts && (
+                <div className="relative group">
+                  <button className="flex items-center space-x-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-white/80 hover:text-white transition-all duration-200">
+                    <Settings className="h-4 w-4" />
+                    <span className="text-sm">{getChartTypeIcon(chart.type)}</span>
+                  </button>
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                    <div className="p-2">
+                      <div className="text-xs text-white/60 mb-2 px-2">Tip charta</div>
+                      {chartTypeOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => handleChartTypeChange(index, option.value as any)}
+                          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-sm transition-all duration-200 ${
+                            chart.type === option.value
+                              ? 'bg-blue-500/30 text-blue-300 border border-blue-500/50'
+                              : 'text-white/80 hover:bg-white/10 hover:text-white'
+                          }`}
+                        >
+                          <span className="text-base">{option.icon}</span>
+                          <span>{option.label}</span>
+                          {chart.type === option.value && (
+                            <span className="ml-auto text-blue-400">✓</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
             <div className="h-80">
               {renderChart(chart, index)}
@@ -378,16 +407,18 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
             <Plus className="h-6 w-6 text-blue-400" />
             <h3 className="text-lg font-semibold text-white">Create Your Dashboard</h3>
           </div>
-          <button
-            onClick={() => setShowCustomBuilder(!showCustomBuilder)}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-blue-400 hover:text-blue-300 transition-all duration-200"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="text-sm font-medium">Add Chart</span>
-          </button>
+          {canAddCharts && (
+            <button
+              onClick={() => setShowCustomBuilder(!showCustomBuilder)}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-blue-400 hover:text-blue-300 transition-all duration-200"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="text-sm font-medium">Add Chart</span>
+            </button>
+          )}
         </div>
 
-        {showCustomBuilder && (
+        {canAddCharts && showCustomBuilder && (
           <div className="bg-white/5 rounded-lg p-6 mb-6 border border-white/10">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               {/* Chart Type */}
@@ -492,6 +523,37 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
               </div>
             </div>
 
+            {/* Boje: paleta za pie/doughnut, jedan ton za bar/line */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-white/80 text-sm font-medium mb-2">
+                  {newChart.type === 'pie' || newChart.type === 'doughnut' ? 'Paleta boja' : 'Boja serije'}
+                </label>
+                {newChart.type === 'pie' || newChart.type === 'doughnut' ? (
+                  <select
+                    value={newChart.paletteIndex}
+                    onChange={(e) => setNewChart(prev => ({ ...prev, paletteIndex: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 bg-gray-800 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    style={{ color: 'white', backgroundColor: '#1f2937' }}
+                  >
+                    {CHART_COLOR_PALETTES.map((p, i) => (
+                      <option key={i} value={i} style={{ backgroundColor: '#1f2937', color: 'white' }}>{p.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={newChart.customColor}
+                      onChange={(e) => setNewChart(prev => ({ ...prev, customColor: e.target.value }))}
+                      className="h-10 w-14 cursor-pointer rounded border border-white/20 bg-white/10"
+                    />
+                    <span className="text-white/70 text-sm">{newChart.customColor}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="flex items-center justify-between">
               <div className="text-sm text-white/60">
                 {newChart.type === 'pie' || newChart.type === 'doughnut' 
@@ -528,13 +590,15 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
                     <BarChart3 className="h-5 w-5 text-purple-400" />
                     <h4 className="text-lg font-medium text-white">{chart.title}</h4>
                   </div>
-                  <button
-                    onClick={() => removeCustomChart(index)}
-                    className="p-1 text-white/60 hover:text-red-400 transition-colors"
-                    title="Remove chart"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                  {canAddCharts && (
+                    <button
+                      onClick={() => removeCustomChart(index)}
+                      className="p-1 text-white/60 hover:text-red-400 transition-colors"
+                      title="Remove chart"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
                 <div className="h-80">
                   {renderChart(chart, index)}
@@ -544,11 +608,16 @@ const Dashboard: React.FC<DashboardProps> = ({ result, csvData, onCustomChartsCh
           </div>
         )}
 
-        {customCharts.length === 0 && !showCustomBuilder && (
+        {customCharts.length === 0 && !showCustomBuilder && canAddCharts && (
           <div className="text-center py-8 text-white/60">
             <Plus className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>Create custom charts by selecting your own columns and chart types</p>
             <p className="text-sm mt-2">Click "Add Chart" to get started</p>
+          </div>
+        )}
+        {customCharts.length === 0 && !canAddCharts && (
+          <div className="text-center py-6 text-white/50 text-sm">
+            No custom charts in this saved dashboard.
           </div>
         )}
       </div>

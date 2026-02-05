@@ -24,7 +24,7 @@ function getStoredUser(): { id: string; email: string } | null {
 }
 
 function App() {
-  const [data, setData] = useState<CSVData | APIData | null>(null);
+  const [data, setData] = useState<CSVData | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [user, setUser] = useState<{ id: string; email: string } | null>(getStoredUser);
@@ -54,6 +54,7 @@ function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [customCharts, setCustomCharts] = useState<ChartData[]>([]);
+  const [isLoadedAnalysis, setIsLoadedAnalysis] = useState(false);
 
   const handleSaveAnalysis = async () => {
     if (!currentAnalysisLogId || !analysisResult || !user) return;
@@ -88,12 +89,14 @@ function App() {
     setCurrentAnalysisLogId(null);
     setIsSaved(false);
     setCustomCharts([]);
+    setIsLoadedAnalysis(false);
   };
 
   const handleQuestionSubmit = async (question: string) => {
     if (!data) return;
 
     setIsAnalyzing(true);
+    setIsLoadedAnalysis(false);
     try {
       const result = generateFallbackAnalysis(data, question);
       setAnalysisResult(result);
@@ -157,6 +160,7 @@ function App() {
 
       setCurrentAnalysisLogId(id);
       setIsSaved(analysisData.is_saved ?? true);
+      setIsLoadedAnalysis(true);
     } catch (error) {
       console.error('Failed to load analysis:', error);
     }
@@ -166,6 +170,17 @@ function App() {
     const numericColumns = data.headers.filter(header => {
       return data.data.some(row => !isNaN(parseFloat(String(row[header]))));
     });
+    const palette = [
+      'rgba(59, 130, 246, 0.7)', 'rgba(34, 197, 94, 0.7)', 'rgba(249, 115, 22, 0.7)',
+      'rgba(236, 72, 153, 0.7)', 'rgba(168, 85, 247, 0.7)', 'rgba(14, 165, 233, 0.7)',
+      'rgba(251, 191, 36, 0.7)', 'rgba(20, 184, 166, 0.7)'
+    ];
+    const borderPalette = palette.map(c => c.replace('0.7', '1'));
+    const cols = numericColumns.slice(0, 8);
+    const avgData = cols.map(col => {
+      const values = data.data.map(row => parseFloat(String(row[col])) || 0);
+      return values.length ? values.reduce((s, v) => s + v, 0) / values.length : 0;
+    });
 
     return {
       summary: `Analysis for: "${question}". Found ${data.data.length} records with ${numericColumns.length} numeric columns from CSV.`,
@@ -174,15 +189,12 @@ function App() {
           type: 'bar',
           title: 'Data Overview',
           data: {
-            labels: numericColumns.slice(0, 5),
+            labels: cols,
             datasets: [{
-              label: 'Values',
-              data: numericColumns.slice(0, 5).map(col => {
-                const values = data.data.map(row => parseFloat(String(row[col])) || 0);
-                return values.reduce((sum, val) => sum + val, 0) / values.length;
-              }),
-              backgroundColor: 'rgba(59, 130, 246, 0.6)',
-              borderColor: 'rgba(59, 130, 246, 1)',
+              label: 'Average',
+              data: avgData,
+              backgroundColor: palette.slice(0, cols.length),
+              borderColor: borderPalette.slice(0, cols.length),
               borderWidth: 2
             }]
           }
@@ -322,6 +334,7 @@ function App() {
                   csvData={data} 
                   onCustomChartsChange={handleCustomChartsChange}
                   initialCustomCharts={customCharts}
+                  canAddCharts={!isLoadedAnalysis}
                 />
               ) : (
                 <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 text-center text-white/70">
