@@ -332,24 +332,26 @@ function App() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1">
-              <QuestionPanel 
-                onSubmit={handleQuestionSubmit}
-                isAnalyzing={isAnalyzing}
-                dataInfo={{
-                  records: data.data.length,
-                  columns: data.headers.length,
-                  source: 'csv'
-                }}
-                userId={user?.id}
-              />
-            </div>
-            <div className="lg:col-span-2">
+          <div className={`grid grid-cols-1 gap-8 ${isLoadedAnalysis ? '' : 'lg:grid-cols-3'}`}>
+            {!isLoadedAnalysis && (
+              <div className="lg:col-span-1">
+                <QuestionPanel
+                  onSubmit={handleQuestionSubmit}
+                  isAnalyzing={isAnalyzing}
+                  dataInfo={{
+                    records: data.data.length,
+                    columns: data.headers.length,
+                    source: 'csv'
+                  }}
+                  userId={user?.id}
+                />
+              </div>
+            )}
+            <div className={isLoadedAnalysis ? '' : 'lg:col-span-2'}>
               {analysisResult ? (
-                <Dashboard 
-                  result={analysisResult} 
-                  csvData={data} 
+                <Dashboard
+                  result={analysisResult}
+                  csvData={data}
                   onCustomChartsChange={handleCustomChartsChange}
                   initialCustomCharts={customCharts}
                   canAddCharts={!isLoadedAnalysis}
